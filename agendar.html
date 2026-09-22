@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agendar horário</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <img id="brandLogo" src="" alt="" class="brand-logo hidden">
+      <span id="brandName" class="brand-name">AgendaPro</span>
+    </div>
+  </header>
+
+  <main class="content">
+    <h1>Agende seu horário</h1>
+    <div id="notFound" class="hidden">
+      <p>Não encontramos este negócio. Confira o link com quem te enviou.</p>
+    </div>
+
+    <form id="bookingForm" class="form-grid">
+      <label>Profissional <select id="bkProfissional" required></select></label>
+      <label>Serviço <select id="bkServico" required></select></label>
+      <label>Data <input type="date" id="bkData" required></label>
+      <label>Horário <select id="bkHorario" required></select></label>
+      <label>Seu nome <input type="text" id="bkNome" required placeholder="Nome completo"></label>
+      <label>Seu WhatsApp <input type="tel" id="bkTelefone" required placeholder="11 99999-9999"></label>
+      <button type="submit" class="btn-primary">Confirmar agendamento</button>
+    </form>
+    <div id="bookingResult"></div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="lib/supabaseClient.js"></script>
+<script src="agendar.js"></script>
+</body>
+</html>
