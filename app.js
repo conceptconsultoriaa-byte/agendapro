@@ -41,6 +41,13 @@ async function boot(){
   await loadAll();
   fillConfigForm();
   refreshAll();
+
+  const mpParam = new URLSearchParams(window.location.search).get("mp");
+  if(mpParam){
+    if(mpParam === "conectado") alert("Mercado Pago conectado com sucesso! Os pagamentos dos seus clientes já caem direto na sua conta.");
+    else if(mpParam === "erro") alert("Não foi possível conectar o Mercado Pago. Tente novamente.");
+    window.history.replaceState({}, "", window.location.pathname);
+  }
 }
 
 /* ---------------- ASSINATURA (Mercado Pago) ---------------- */
@@ -153,6 +160,18 @@ function applyBrand(){
   const logoEl = document.getElementById("brandLogo");
   if(BUSINESS.logo_url){ logoEl.src = BUSINESS.logo_url; logoEl.classList.remove("hidden"); }
   else { logoEl.classList.add("hidden"); }
+}
+function renderMpStatus(){
+  const statusEl = document.getElementById("mpStatusText");
+  const btn = document.getElementById("mpConectarBtn");
+  if(BUSINESS.mp_connected){
+    statusEl.textContent = "✅ Conectado — os pagamentos dos seus clientes caem direto na sua conta.";
+    btn.textContent = "Reconectar";
+  } else {
+    statusEl.textContent = "⚠️ Não conectado — conecte para poder cobrar seus clientes.";
+    btn.textContent = "Conectar Mercado Pago";
+  }
+  btn.href = `${BACKEND_URL}/api/mp/conectar?produto=agendapro&id=${BUSINESS.id}`;
 }
 function contrastInk(hex){
   const num = parseInt(hex.slice(1),16);
@@ -427,9 +446,10 @@ async function gerarLinkPagamento(a, prof, serv){
     const resp = await fetch(`${BACKEND_URL}/api/pagamento/criar-link`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ descricao: `${BUSINESS.name} — ${serv.name}`, valor: a.price, agendamentoId: a.id })
+      body: JSON.stringify({ descricao: `${BUSINESS.name} — ${serv.name}`, valor: a.price, agendamentoId: a.id, produto: "agendapro", ownerId: BUSINESS.id })
     });
     const data = await resp.json();
+    if(data.error === "mp_nao_conectado"){ alert("Conecte sua conta do Mercado Pago em Configurações antes de cobrar seus clientes."); return; }
     if(!data.link){ alert("Erro ao gerar link de pagamento."); return; }
     const msg = `Olá ${a.clientName}! Lembrete do seu agendamento de ${serv.name} com ${prof.name} em ${formatDateBR(a.date)} às ${a.time}. Para confirmar, pague aqui (${brl(a.price)}): ${data.link}`;
     window.open(`https://wa.me/55${a.clientPhone}?text=${encodeURIComponent(msg)}`, "_blank");
@@ -555,6 +575,7 @@ function renderRelatorio(){
 /* ---------------- REFRESH ALL ---------------- */
 function refreshAll(){
   applyBrand();
+  renderMpStatus();
   renderProfList();
   renderServList();
   fillBookingSelects();
