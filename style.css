@@ -82,6 +82,12 @@ a{color:inherit;}
 }
 .tab-btn:hover{border-color:var(--lime); color:var(--ink-invert);}
 .tab-btn.active{background:var(--lime); color:var(--lime-ink); border-color:var(--lime);}
+.tab-badge{
+  display:inline-block; min-width:18px; padding:1px 6px; margin-left:4px;
+  border-radius:999px; background:var(--danger); color:#fff;
+  font-size:0.68rem; font-weight:800; line-height:1.4;
+}
+.tab-btn.active .tab-badge{background:var(--lime-ink); color:var(--lime);}
 #logoutBtn{border-color:rgba(192,57,43,0.5); color:#E8998C;}
 #logoutBtn:hover{border-color:var(--danger); color:#fff;}
 

@@ -479,11 +479,16 @@ function renderDashboard(){
   const today = dateKey(new Date());
   const todays = APPOINTMENTS.filter(a=>a.date===today && a.status!=="cancelado");
   document.getElementById("statHoje").textContent = todays.length;
-  const aReceber = APPOINTMENTS.filter(a=>a.status==="pendente").reduce((s,a)=>s+Number(a.price||0),0);
+  const pendentes = APPOINTMENTS.filter(a=>a.status==="pendente");
+  const aReceber = pendentes.reduce((s,a)=>s+Number(a.price||0),0);
   const recebido = APPOINTMENTS.filter(a=>a.status==="pago").reduce((s,a)=>s+Number(a.price||0),0);
   document.getElementById("statAReceber").textContent = brl(aReceber);
   document.getElementById("statRecebido").textContent = brl(recebido);
   document.getElementById("statProfissionais").textContent = PROFESSIONALS.length;
+
+  const badge = document.getElementById("badgeRelatorios");
+  badge.textContent = pendentes.length;
+  badge.classList.toggle("hidden", pendentes.length === 0);
 
   const proximosEl = document.getElementById("proximosList");
   proximosEl.innerHTML = "";
