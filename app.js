@@ -145,6 +145,7 @@ document.querySelectorAll(".tab-btn[data-tab]").forEach(btn=>{
 
 /* ---------------- THEME / BRAND ---------------- */
 function applyBrand(){
+  document.documentElement.setAttribute("data-theme", "dark");
   const cor = BUSINESS.brand_color || "#C6E619";
   document.documentElement.style.setProperty("--lime", cor);
   document.documentElement.style.setProperty("--lime-ink", contrastInk(cor));
