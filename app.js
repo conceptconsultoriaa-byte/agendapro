@@ -136,13 +136,19 @@ document.querySelectorAll(".tab-btn[data-tab]").forEach(btn=>{
 
 /* ---------------- THEME / BRAND ---------------- */
 function applyBrand(){
-  const seg = SEGMENTS[BUSINESS.segment] || SEGMENTS.outro;
-  document.documentElement.style.setProperty("--brand", seg.color);
-  document.documentElement.style.setProperty("--brand-dark", shade(seg.color, -18));
+  const cor = BUSINESS.brand_color || "#C6E619";
+  document.documentElement.style.setProperty("--lime", cor);
+  document.documentElement.style.setProperty("--lime-ink", contrastInk(cor));
   document.getElementById("brandName").textContent = BUSINESS.name || "AgendaPro";
   const logoEl = document.getElementById("brandLogo");
   if(BUSINESS.logo_url){ logoEl.src = BUSINESS.logo_url; logoEl.classList.remove("hidden"); }
   else { logoEl.classList.add("hidden"); }
+}
+function contrastInk(hex){
+  const num = parseInt(hex.slice(1),16);
+  const r=(num>>16)&255, g=(num>>8)&255, b=num&255;
+  const brightness = (r*299 + g*587 + b*114) / 1000;
+  return brightness > 150 ? "#101010" : "#F5F5EF";
 }
 function shade(hex, percent){
   const num = parseInt(hex.slice(1),16);
@@ -156,6 +162,7 @@ const cfgForm = document.getElementById("configForm");
 function fillConfigForm(){
   document.getElementById("cfgNome").value = BUSINESS.name;
   document.getElementById("cfgSegmento").value = BUSINESS.segment;
+  document.getElementById("cfgCor").value = BUSINESS.brand_color || "#C6E619";
   document.getElementById("cfgWhats").value = BUSINESS.whatsapp || "";
   document.getElementById("cfgSlug").value = BUSINESS.slug;
   updatePublicLink();
@@ -188,6 +195,7 @@ cfgForm.addEventListener("submit", async e=>{
   const updates = {
     name: document.getElementById("cfgNome").value.trim() || "Meu Negócio",
     segment: document.getElementById("cfgSegmento").value,
+    brand_color: document.getElementById("cfgCor").value,
     whatsapp: document.getElementById("cfgWhats").value.trim(),
     slug: document.getElementById("cfgSlug").value.trim().toLowerCase()
   };

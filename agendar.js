@@ -3,8 +3,6 @@
    Acesso via agendar.html?empresa=<slug-do-negocio>
    =========================================================== */
 
-const SEGMENT_COLORS = { salao:"#e05d8f", barbearia:"#2b2d42", estetica:"#7b61ff", saude:"#2e9e5b", outro:"#e08e45" };
-
 let BUSINESS = null;
 let PROFESSIONALS = [];
 let SERVICES = [];
@@ -14,11 +12,11 @@ function pad(n){ return String(n).padStart(2,"0"); }
 function dateKey(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
 function formatDateBR(dateStr){ const [y,m,d] = dateStr.split("-"); return `${d}/${m}/${y}`; }
 function timeShort(t){ return t ? t.slice(0,5) : t; }
-function shade(hex, percent){
+function contrastInk(hex){
   const num = parseInt(hex.slice(1),16);
-  let r=(num>>16)+percent, g=((num>>8)&0x00FF)+percent, b=(num&0x0000FF)+percent;
-  r=Math.max(Math.min(255,r),0); g=Math.max(Math.min(255,g),0); b=Math.max(Math.min(255,b),0);
-  return "#"+(g|(r<<16)|(b<<8)).toString(16).padStart(6,"0");
+  const r=(num>>16)&255, g=(num>>8)&255, b=num&255;
+  const brightness = (r*299 + g*587 + b*114) / 1000;
+  return brightness > 150 ? "#101010" : "#F5F5EF";
 }
 
 const bkProfissional = document.getElementById("bkProfissional");
@@ -34,9 +32,9 @@ async function boot(){
   if(!biz){ document.getElementById("notFound").classList.remove("hidden"); document.getElementById("bookingForm").classList.add("hidden"); return; }
   BUSINESS = biz;
 
-  const color = SEGMENT_COLORS[BUSINESS.segment] || SEGMENT_COLORS.outro;
-  document.documentElement.style.setProperty("--brand", color);
-  document.documentElement.style.setProperty("--brand-dark", shade(color, -18));
+  const color = BUSINESS.brand_color || "#C6E619";
+  document.documentElement.style.setProperty("--lime", color);
+  document.documentElement.style.setProperty("--lime-ink", contrastInk(color));
   document.getElementById("brandName").textContent = BUSINESS.name;
   if(BUSINESS.logo_url){ const logo = document.getElementById("brandLogo"); logo.src = BUSINESS.logo_url; logo.classList.remove("hidden"); }
 
