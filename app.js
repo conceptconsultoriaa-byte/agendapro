@@ -12,6 +12,12 @@ const SEGMENTS = {
 };
 const PALETTE = ["#e05d8f","#7b61ff","#2e9e5b","#e08e45","#2b8fd6","#d64545","#c9962b","#3aa0a0"];
 const BACKEND_URL = "https://agendapro-backend-1n92.onrender.com";
+const PLAN_LIMITS = { basico: { profissionais: 2, relatorioCompleto: false, logoPersonalizado: false },
+                       pro:    { profissionais: 10, relatorioCompleto: true,  logoPersonalizado: true } };
+function planoAtual(){
+  // Sem plano escolhido ainda (trial) = mesmos limites do Pro, pra poder avaliar o app antes de assinar.
+  return PLAN_LIMITS[BUSINESS.subscription_plan] || PLAN_LIMITS.pro;
+}
 
 let CURRENT_USER = null;
 let BUSINESS = null;
@@ -154,6 +160,10 @@ function fillConfigForm(){
   document.getElementById("cfgSlug").value = BUSINESS.slug;
   updatePublicLink();
   renderSubStatus();
+  const logoLiberado = planoAtual().logoPersonalizado;
+  const logoInput = document.getElementById("cfgLogo");
+  logoInput.disabled = !logoLiberado;
+  document.getElementById("cfgLogoHint").textContent = logoLiberado ? "" : "Disponível no plano Pro.";
 }
 
 function renderSubStatus(){
@@ -182,6 +192,10 @@ cfgForm.addEventListener("submit", async e=>{
     slug: document.getElementById("cfgSlug").value.trim().toLowerCase()
   };
   const file = document.getElementById("cfgLogo").files[0];
+  if(file && !planoAtual().logoPersonalizado){
+    alert("Logotipo personalizado é exclusivo do plano Pro. Faça upgrade na seção Assinatura.");
+    return;
+  }
   if(file){
     const path = `${BUSINESS.id}/${Date.now()}-${file.name}`;
     const { error: upErr } = await supabaseClient.storage.from("logos").upload(path, file, { upsert: true });
@@ -199,6 +213,11 @@ cfgForm.addEventListener("submit", async e=>{
 /* ---------------- PROFISSIONAIS ---------------- */
 document.getElementById("profForm").addEventListener("submit", async e=>{
   e.preventDefault();
+  const limite = planoAtual().profissionais;
+  if(PROFESSIONALS.length >= limite){
+    alert(`Seu plano atual permite até ${limite} profissionais. Para cadastrar mais, faça upgrade em Configurações → Assinatura.`);
+    return;
+  }
   const name = document.getElementById("profNome").value.trim();
   const spec = document.getElementById("profEspecialidade").value.trim();
   const start_time = document.getElementById("profInicio").value;
@@ -215,8 +234,11 @@ document.getElementById("profForm").addEventListener("submit", async e=>{
 
 function renderProfList(){
   const el = document.getElementById("profList");
+  const limite = planoAtual().profissionais;
+  const contadorHtml = `<p class="hint">${PROFESSIONALS.length} de ${limite} profissionais usados no seu plano.</p>`;
   el.innerHTML = "";
-  if(PROFESSIONALS.length===0){ el.innerHTML = "<p class='hint'>Nenhum profissional cadastrado ainda.</p>"; return; }
+  if(PROFESSIONALS.length===0){ el.innerHTML = contadorHtml + "<p class='hint'>Nenhum profissional cadastrado ainda.</p>"; return; }
+  el.insertAdjacentHTML("beforeend", contadorHtml);
   PROFESSIONALS.forEach(p=>{
     const div = document.createElement("div");
     div.className = "list-item";
@@ -451,6 +473,10 @@ function renderDashboard(){
 /* ---------------- RELATORIOS ---------------- */
 document.getElementById("filtroStatus").addEventListener("change", renderRelatorio);
 function renderRelatorio(){
+  const liberado = planoAtual().relatorioCompleto;
+  document.getElementById("relatorioLocked").classList.toggle("hidden", liberado);
+  document.getElementById("relatorioContent").classList.toggle("hidden", !liberado);
+  if(!liberado) return;
   const filtro = document.getElementById("filtroStatus").value;
   const body = document.getElementById("reportBody");
   body.innerHTML = "";
