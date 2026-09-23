@@ -158,3 +158,6 @@ create table if not exists mp_accounts (
 );
 alter table mp_accounts enable row level security;
 -- De propósito, nenhuma policy é criada aqui: só o backend (chave de serviço) acessa essa tabela.
+
+-- ---------- MIGRAÇÃO: TrainPro (mesma tabela "businesses", campo de tema claro/grafite) ----------
+alter table businesses add column if not exists fundo_estilo text not null default 'branco' check (fundo_estilo in ('branco','grafite'));
