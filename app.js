@@ -11,6 +11,7 @@ const SEGMENTS = {
   outro:      { label: "Outro segmento",          color: "#e08e45", services: [["Serviço 1",60,100],["Serviço 2",30,50]] }
 };
 const PALETTE = ["#e05d8f","#7b61ff","#2e9e5b","#e08e45","#2b8fd6","#d64545","#c9962b","#3aa0a0"];
+const BACKEND_URL = "https://agendapro-backend-1n92.onrender.com";
 
 let CURRENT_USER = null;
 let BUSINESS = null;
@@ -30,9 +31,52 @@ async function boot(){
   if(!session){ window.location.href = "login.html"; return; }
   CURRENT_USER = session.user;
   await loadOrCreateBusiness();
+  if(isSubscriptionBlocked()){ renderSubscriptionGate(); return; }
   await loadAll();
   fillConfigForm();
   refreshAll();
+}
+
+/* ---------------- ASSINATURA (Mercado Pago) ---------------- */
+function isSubscriptionBlocked(){
+  return BUSINESS.subscription_status === "inadimplente" || BUSINESS.subscription_status === "cancelado";
+}
+
+async function iniciarAssinatura(plano){
+  try{
+    const resp = await fetch(`${BACKEND_URL}/api/assinatura/criar`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ business_id: BUSINESS.id, email: CURRENT_USER.email, plano })
+    });
+    const data = await resp.json();
+    if(data.link){ window.location.href = data.link; }
+    else { alert("Não foi possível iniciar a assinatura: " + (data.error || "tente novamente em instantes.")); }
+  }catch(err){
+    alert("Erro de conexão com o servidor de pagamento. Tente novamente em instantes.");
+  }
+}
+
+function renderSubscriptionGate(){
+  document.querySelector(".tabs").style.display = "none";
+  document.querySelector(".content").innerHTML = `
+    <h1>Assinatura pendente</h1>
+    <p class="hint">Sua assinatura do AgendaPro está <strong>${BUSINESS.subscription_status}</strong>. Escolha um plano abaixo para voltar a usar o app.</p>
+    <div class="cards">
+      <div class="card">
+        <span class="card-label">Básico — R$ 79/mês</span>
+        <span class="hint">Até 2 profissionais, calendário geral + individual.</span>
+        <button class="btn-primary" id="gateBasico" style="margin-top:10px;">Assinar Básico</button>
+      </div>
+      <div class="card">
+        <span class="card-label">Pro — R$ 149/mês</span>
+        <span class="hint">Até 10 profissionais, relatório completo, marca personalizada.</span>
+        <button class="btn-primary" id="gatePro" style="margin-top:10px;">Assinar Pro</button>
+      </div>
+    </div>
+  `;
+  document.getElementById("gateBasico").addEventListener("click", ()=> iniciarAssinatura("basico"));
+  document.getElementById("gatePro").addEventListener("click", ()=> iniciarAssinatura("pro"));
 }
 
 document.getElementById("logoutBtn").addEventListener("click", async ()=>{
@@ -109,7 +153,17 @@ function fillConfigForm(){
   document.getElementById("cfgWhats").value = BUSINESS.whatsapp || "";
   document.getElementById("cfgSlug").value = BUSINESS.slug;
   updatePublicLink();
+  renderSubStatus();
 }
+
+function renderSubStatus(){
+  const badge = document.getElementById("subStatusBadge");
+  const statusClassMap = { trial: "status-pendente", ativo: "status-pago", inadimplente: "status-cancelado", cancelado: "status-cancelado" };
+  badge.textContent = BUSINESS.subscription_status || "trial";
+  badge.className = "status-badge " + (statusClassMap[BUSINESS.subscription_status] || "status-pendente");
+}
+document.getElementById("btnAssinarBasico").addEventListener("click", ()=> iniciarAssinatura("basico"));
+document.getElementById("btnAssinarPro").addEventListener("click", ()=> iniciarAssinatura("pro"));
 function updatePublicLink(){
   const url = `${window.location.origin}${window.location.pathname.replace("index.html","")}agendar.html?empresa=${BUSINESS.slug}`;
   document.getElementById("publicLinkText").textContent = url;
