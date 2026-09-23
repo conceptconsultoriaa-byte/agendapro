@@ -372,7 +372,7 @@ document.getElementById("bookingForm").addEventListener("submit", async e=>{
   const apptForLink = { id: inserted.id, price: serv.price, clientName, clientPhone, date, time };
   resultEl.innerHTML = `<div class="appointment-item">
       <span>Agendamento criado para <strong>${clientName}</strong> — ${serv.name} com ${prof.name}, ${formatDateBR(date)} às ${time}.</span>
-      <div><a class="btn-whats" href="#" id="bookingPayLink">🔗 Enviar link de pagamento via WhatsApp</a></div>
+      <div><a class="btn-whats" href="#" id="bookingPayLink">📩 Lembrete + Pagamento via WhatsApp</a></div>
     </div>`;
   document.getElementById("bookingPayLink").addEventListener("click", async (ev)=>{ ev.preventDefault(); await gerarLinkPagamento(apptForLink, prof, serv); });
 
@@ -431,7 +431,7 @@ async function gerarLinkPagamento(a, prof, serv){
     });
     const data = await resp.json();
     if(!data.link){ alert("Erro ao gerar link de pagamento."); return; }
-    const msg = `Olá ${a.clientName}! Segue o link de pagamento do seu agendamento de ${serv.name} com ${prof.name} em ${formatDateBR(a.date)} às ${a.time}, valor ${brl(a.price)}: ${data.link}`;
+    const msg = `Olá ${a.clientName}! Lembrete do seu agendamento de ${serv.name} com ${prof.name} em ${formatDateBR(a.date)} às ${a.time}. Para confirmar, pague aqui (${brl(a.price)}): ${data.link}`;
     window.open(`https://wa.me/55${a.clientPhone}?text=${encodeURIComponent(msg)}`, "_blank");
   }catch(err){
     alert("Erro de conexão ao gerar o link de pagamento.");
@@ -453,7 +453,7 @@ function renderApptItem(a){
   if(a.status==="pendente"){
     const cobrarBtn = document.createElement("a");
     cobrarBtn.className = "btn-whats"; cobrarBtn.href = "#";
-    cobrarBtn.textContent = "🔗 Cobrar";
+    cobrarBtn.textContent = "📩 Lembrete + Pagamento";
     cobrarBtn.addEventListener("click", async (ev)=>{ ev.preventDefault(); await gerarLinkPagamento(a, prof, serv); });
     actions.appendChild(cobrarBtn);
 
@@ -461,13 +461,14 @@ function renderApptItem(a){
     payBtn.className = "btn-secondary"; payBtn.textContent = "Marcar como pago";
     payBtn.addEventListener("click", async ()=>{ await supabaseClient.from("appointments").update({status:"pago"}).eq("id", a.id); await loadAll(); refreshAll(); });
     actions.appendChild(payBtn);
+  } else {
+    const remindBtn = document.createElement("a");
+    remindBtn.className = "btn-whats"; remindBtn.target = "_blank"; remindBtn.rel = "noopener";
+    const msg = `Olá ${a.clientName}! Lembrete do seu horário de ${serv.name} com ${prof.name} em ${formatDateBR(a.date)} às ${a.time}.`;
+    remindBtn.href = `https://wa.me/55${a.clientPhone}?text=${encodeURIComponent(msg)}`;
+    remindBtn.textContent = "Lembrete WhatsApp";
+    actions.appendChild(remindBtn);
   }
-  const remindBtn = document.createElement("a");
-  remindBtn.className = "btn-whats"; remindBtn.target = "_blank"; remindBtn.rel = "noopener";
-  const msg = `Olá ${a.clientName}! Lembrete do seu horário de ${serv.name} com ${prof.name} em ${formatDateBR(a.date)} às ${a.time}.`;
-  remindBtn.href = `https://wa.me/55${a.clientPhone}?text=${encodeURIComponent(msg)}`;
-  remindBtn.textContent = "Lembrete WhatsApp";
-  actions.appendChild(remindBtn);
   const cancelBtn = document.createElement("button");
   cancelBtn.className = "btn-danger"; cancelBtn.textContent = "Cancelar";
   cancelBtn.addEventListener("click", async ()=>{ if(confirm("Cancelar este agendamento?")){ await supabaseClient.from("appointments").update({status:"cancelado"}).eq("id", a.id); await loadAll(); refreshAll(); } });
