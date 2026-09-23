@@ -361,20 +361,20 @@ document.getElementById("bookingForm").addEventListener("submit", async e=>{
   const prof = PROFESSIONALS.find(p=>p.id===profId);
   if(!prof || !serv || !date || !time || !clientName || !clientPhone){ alert("Preencha todos os campos e escolha um horário disponível."); return; }
 
-  const { error } = await supabaseClient.from("appointments").insert({
+  const { data: inserted, error } = await supabaseClient.from("appointments").insert({
     business_id: BUSINESS.id, professional_id: profId, service_id: servId,
     client_name: clientName, client_phone: clientPhone,
     date, time, duration: serv.duration, price: serv.price, status: "pendente"
-  });
+  }).select().single();
   if(error){ alert("Erro ao criar agendamento: " + error.message); return; }
 
   const resultEl = document.getElementById("bookingResult");
-  const paymentMsg = `Olá ${clientName}! Seu agendamento de *${serv.name}* com ${prof.name} em ${formatDateBR(date)} às ${time} foi criado. Valor: ${brl(serv.price)}. Para confirmar, realize o pagamento.`;
-  const payLink = `https://wa.me/55${clientPhone}?text=${encodeURIComponent(paymentMsg)}`;
+  const apptForLink = { id: inserted.id, price: serv.price, clientName, clientPhone, date, time };
   resultEl.innerHTML = `<div class="appointment-item">
       <span>Agendamento criado para <strong>${clientName}</strong> — ${serv.name} com ${prof.name}, ${formatDateBR(date)} às ${time}.</span>
-      <div><a class="btn-whats" href="${payLink}" target="_blank" rel="noopener">Enviar link/lembrete via WhatsApp</a></div>
+      <div><a class="btn-whats" href="#" id="bookingPayLink">🔗 Enviar link de pagamento via WhatsApp</a></div>
     </div>`;
+  document.getElementById("bookingPayLink").addEventListener("click", async (ev)=>{ ev.preventDefault(); await gerarLinkPagamento(apptForLink, prof, serv); });
 
   if(BUSINESS.whatsapp){
     const ownerMsg = `Novo agendamento: ${clientName} marcou ${serv.name} com ${prof.name} em ${formatDateBR(date)} às ${time}.`;
@@ -422,6 +422,22 @@ function renderDayList(key, listEl, filterProfId){
   appts.forEach(a=> listEl.appendChild(renderApptItem(a)));
 }
 
+async function gerarLinkPagamento(a, prof, serv){
+  try{
+    const resp = await fetch(`${BACKEND_URL}/api/pagamento/criar-link`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ descricao: `${BUSINESS.name} — ${serv.name}`, valor: a.price, agendamentoId: a.id })
+    });
+    const data = await resp.json();
+    if(!data.link){ alert("Erro ao gerar link de pagamento."); return; }
+    const msg = `Olá ${a.clientName}! Segue o link de pagamento do seu agendamento de ${serv.name} com ${prof.name} em ${formatDateBR(a.date)} às ${a.time}, valor ${brl(a.price)}: ${data.link}`;
+    window.open(`https://wa.me/55${a.clientPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+  }catch(err){
+    alert("Erro de conexão ao gerar o link de pagamento.");
+  }
+}
+
 function renderApptItem(a){
   const prof = PROFESSIONALS.find(p=>p.id===a.profId) || {name:"—",color:"#999"};
   const serv = SERVICES.find(s=>s.id===a.servId) || {name:"—", price:0};
@@ -435,6 +451,12 @@ function renderApptItem(a){
     <span class="row-actions"></span>`;
   const actions = div.querySelector(".row-actions");
   if(a.status==="pendente"){
+    const cobrarBtn = document.createElement("a");
+    cobrarBtn.className = "btn-whats"; cobrarBtn.href = "#";
+    cobrarBtn.textContent = "🔗 Cobrar";
+    cobrarBtn.addEventListener("click", async (ev)=>{ ev.preventDefault(); await gerarLinkPagamento(a, prof, serv); });
+    actions.appendChild(cobrarBtn);
+
     const payBtn = document.createElement("button");
     payBtn.className = "btn-secondary"; payBtn.textContent = "Marcar como pago";
     payBtn.addEventListener("click", async ()=>{ await supabaseClient.from("appointments").update({status:"pago"}).eq("id", a.id); await loadAll(); refreshAll(); });
