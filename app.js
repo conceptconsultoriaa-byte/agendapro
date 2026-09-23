@@ -45,7 +45,12 @@ async function boot(){
 
 /* ---------------- ASSINATURA (Mercado Pago) ---------------- */
 function isSubscriptionBlocked(){
-  return BUSINESS.subscription_status === "inadimplente" || BUSINESS.subscription_status === "cancelado";
+  if(BUSINESS.subscription_status === "inadimplente" || BUSINESS.subscription_status === "cancelado") return true;
+  if(BUSINESS.subscription_status === "trial" && !BUSINESS.subscription_plan && BUSINESS.trial_expires_at && new Date(BUSINESS.trial_expires_at) < new Date()) return true;
+  return false;
+}
+function trialExpirado(){
+  return BUSINESS.subscription_status === "trial" && !BUSINESS.subscription_plan && BUSINESS.trial_expires_at && new Date(BUSINESS.trial_expires_at) < new Date();
 }
 
 async function iniciarAssinatura(plano){
@@ -65,9 +70,13 @@ async function iniciarAssinatura(plano){
 
 function renderSubscriptionGate(){
   document.querySelector(".tabs").style.display = "none";
+  const titulo = trialExpirado() ? "Seu teste grátis de 30 dias acabou" : "Assinatura pendente";
+  const msg = trialExpirado()
+    ? "Esperamos que tenha gostado! Escolha um plano abaixo pra continuar usando o AgendaPro."
+    : `Sua assinatura do AgendaPro está <strong>${BUSINESS.subscription_status}</strong>. Escolha um plano abaixo para voltar a usar o app.`;
   document.querySelector(".content").innerHTML = `
-    <h1>Assinatura pendente</h1>
-    <p class="hint">Sua assinatura do AgendaPro está <strong>${BUSINESS.subscription_status}</strong>. Escolha um plano abaixo para voltar a usar o app.</p>
+    <h1>${titulo}</h1>
+    <p class="hint">${msg}</p>
     <div class="cards">
       <div class="card">
         <span class="card-label">Básico — R$ 79/mês</span>
@@ -75,7 +84,7 @@ function renderSubscriptionGate(){
         <button class="btn-primary" id="gateBasico" style="margin-top:10px;">Assinar Básico</button>
       </div>
       <div class="card">
-        <span class="card-label">Pro — R$ 149/mês</span>
+        <span class="card-label">Pro — R$ 120/mês</span>
         <span class="hint">Até 10 profissionais, relatório completo, marca personalizada.</span>
         <button class="btn-primary" id="gatePro" style="margin-top:10px;">Assinar Pro</button>
       </div>
@@ -176,7 +185,12 @@ function fillConfigForm(){
 function renderSubStatus(){
   const badge = document.getElementById("subStatusBadge");
   const statusClassMap = { trial: "status-pendente", ativo: "status-pago", inadimplente: "status-cancelado", cancelado: "status-cancelado" };
-  badge.textContent = BUSINESS.subscription_status || "trial";
+  let texto = BUSINESS.subscription_status || "trial";
+  if(BUSINESS.subscription_status === "trial" && !BUSINESS.subscription_plan && BUSINESS.trial_expires_at){
+    const dias = Math.max(0, Math.ceil((new Date(BUSINESS.trial_expires_at) - new Date()) / 86400000));
+    texto = `trial · ${dias} dia(s) restante(s)`;
+  }
+  badge.textContent = texto;
   badge.className = "status-badge " + (statusClassMap[BUSINESS.subscription_status] || "status-pendente");
 }
 document.getElementById("btnAssinarBasico").addEventListener("click", ()=> iniciarAssinatura("basico"));

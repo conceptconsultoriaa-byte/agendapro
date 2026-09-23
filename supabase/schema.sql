@@ -119,3 +119,27 @@ grant execute on function public.get_busy_slots(uuid, uuid, date) to anon, authe
 -- ---------- STORAGE (rode manualmente na tela Storage do Supabase) ----------
 -- Crie um bucket público chamado "logos" (Storage → New bucket → Public bucket = ON)
 -- Isso é usado para guardar o logotipo de cada negócio.
+-- Sem as políticas abaixo, o upload falha com "new row violates row-level security policy".
+
+create policy "dono envia logo do proprio negocio" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'logos'
+    and exists (select 1 from businesses b where b.owner_id = auth.uid() and b.id::text = (storage.foldername(name))[1])
+  );
+
+create policy "dono atualiza logo do proprio negocio" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'logos'
+    and exists (select 1 from businesses b where b.owner_id = auth.uid() and b.id::text = (storage.foldername(name))[1])
+  );
+
+create policy "qualquer um pode ver os logos" on storage.objects
+  for select using (bucket_id = 'logos');
+
+-- ---------- MIGRAÇÃO: prazo do teste grátis (30 dias) ----------
+alter table businesses add column if not exists trial_expires_at timestamptz;
+update businesses set trial_expires_at = coalesce(trial_expires_at, created_at + interval '30 days');
+alter table businesses alter column trial_expires_at set default (now() + interval '30 days');
+alter table businesses alter column trial_expires_at set not null;
