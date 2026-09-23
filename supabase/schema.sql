@@ -161,3 +161,39 @@ alter table mp_accounts enable row level security;
 
 -- ---------- MIGRAÇÃO: TrainPro (mesma tabela "businesses", campo de tema claro/grafite) ----------
 alter table businesses add column if not exists fundo_estilo text not null default 'branco' check (fundo_estilo in ('branco','grafite'));
+
+-- ---------- MIGRAÇÃO: patrocinadores (AgendaPro e TrainPro, mesma tabela, separados por "produto") ----------
+create table if not exists patrocinadores (
+  id uuid primary key default gen_random_uuid(),
+  produto text not null check (produto in ('agendapro','trainpro')),
+  nome text not null,
+  logo_url text,
+  link_url text,
+  ativo boolean not null default true,
+  created_at timestamptz default now()
+);
+alter table patrocinadores enable row level security;
+
+create policy "publico le patrocinadores ativos" on patrocinadores
+  for select using (ativo = true);
+
+create policy "admin gerencia patrocinadores" on patrocinadores
+  for all
+  using (auth.jwt() ->> 'email' = 'tadeuconcept@gmail.com')
+  with check (auth.jwt() ->> 'email' = 'tadeuconcept@gmail.com');
+
+create policy "admin envia logo de patrocinador" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'logos'
+    and (storage.foldername(name))[1] = 'patrocinadores'
+    and auth.jwt() ->> 'email' = 'tadeuconcept@gmail.com'
+  );
+
+create policy "admin atualiza logo de patrocinador" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'logos'
+    and (storage.foldername(name))[1] = 'patrocinadores'
+    and auth.jwt() ->> 'email' = 'tadeuconcept@gmail.com'
+  );

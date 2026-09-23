@@ -41,6 +41,7 @@ async function boot(){
   await loadAll();
   fillConfigForm();
   refreshAll();
+  await renderSponsorBanner();
 
   const mpParam = new URLSearchParams(window.location.search).get("mp");
   if(mpParam){
@@ -48,6 +49,17 @@ async function boot(){
     else if(mpParam === "erro") alert("Não foi possível conectar o Mercado Pago. Tente novamente.");
     window.history.replaceState({}, "", window.location.pathname);
   }
+}
+
+/* ---------------- PATROCINADOR ---------------- */
+async function renderSponsorBanner(){
+  const { data } = await supabaseClient.from("patrocinadores").select("*").eq("produto", "agendapro").eq("ativo", true).limit(1).maybeSingle();
+  const el = document.getElementById("sponsorBanner");
+  if(!data){ el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="sponsor-banner">
+    ${data.logo_url ? `<img src="${data.logo_url}" alt="${data.nome}">` : ""}
+    <span class="label">Patrocinado por</span> <a href="${data.link_url || '#'}" target="_blank" rel="noopener"><strong>${data.nome}</strong></a>
+  </div>`;
 }
 
 /* ---------------- ASSINATURA (Mercado Pago) ---------------- */
