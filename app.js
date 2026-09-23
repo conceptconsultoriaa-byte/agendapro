@@ -543,15 +543,32 @@ function renderDashboard(){
 
 /* ---------------- RELATORIOS ---------------- */
 document.getElementById("filtroStatus").addEventListener("change", renderRelatorio);
+document.getElementById("filtroPeriodo").addEventListener("change", renderRelatorio);
+
+function dentroDoPeriodo(dateStr, periodo){
+  if(periodo === "tudo") return true;
+  const hoje = new Date();
+  const d = new Date(dateStr + "T00:00:00");
+  if(periodo === "dia") return dateStr === dateKey(hoje);
+  if(periodo === "semana"){
+    const inicioSemana = new Date(hoje); inicioSemana.setHours(0,0,0,0); inicioSemana.setDate(hoje.getDate() - hoje.getDay());
+    const fimSemana = new Date(inicioSemana); fimSemana.setDate(inicioSemana.getDate() + 6); fimSemana.setHours(23,59,59,999);
+    return d >= inicioSemana && d <= fimSemana;
+  }
+  if(periodo === "mes") return d.getFullYear() === hoje.getFullYear() && d.getMonth() === hoje.getMonth();
+  return true;
+}
+
 function renderRelatorio(){
   const liberado = planoAtual().relatorioCompleto;
   document.getElementById("relatorioLocked").classList.toggle("hidden", liberado);
   document.getElementById("relatorioContent").classList.toggle("hidden", !liberado);
   if(!liberado) return;
   const filtro = document.getElementById("filtroStatus").value;
+  const periodo = document.getElementById("filtroPeriodo").value;
   const body = document.getElementById("reportBody");
   body.innerHTML = "";
-  const list = APPOINTMENTS.filter(a=> filtro==="todos" || a.status===filtro).sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
+  const list = APPOINTMENTS.filter(a=> (filtro==="todos" || a.status===filtro) && dentroDoPeriodo(a.date, periodo)).sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
   list.forEach(a=>{
     const prof = PROFESSIONALS.find(p=>p.id===a.profId) || {name:"—"};
     const serv = SERVICES.find(s=>s.id===a.servId) || {name:"—"};
@@ -566,8 +583,8 @@ function renderRelatorio(){
     }
     body.appendChild(tr);
   });
-  const totalPendente = APPOINTMENTS.filter(a=>a.status==="pendente").reduce((s,a)=>s+Number(a.price||0),0);
-  const totalPago = APPOINTMENTS.filter(a=>a.status==="pago").reduce((s,a)=>s+Number(a.price||0),0);
+  const totalPendente = APPOINTMENTS.filter(a=>a.status==="pendente" && dentroDoPeriodo(a.date, periodo)).reduce((s,a)=>s+Number(a.price||0),0);
+  const totalPago = APPOINTMENTS.filter(a=>a.status==="pago" && dentroDoPeriodo(a.date, periodo)).reduce((s,a)=>s+Number(a.price||0),0);
   document.getElementById("repTotalPendente").textContent = brl(totalPendente);
   document.getElementById("repTotalPago").textContent = brl(totalPago);
 }
