@@ -1,5 +1,5 @@
 const ADMIN_EMAIL = "tadeuconcept@gmail.com";
-const PRODUTO_LABEL = { agendapro: "AgendaPro", trainpro: "TrainPro" };
+const PRODUTO_LABEL = { agendapro: "AgendaPro", trainpro: "TrainPro", nutripro: "NutriPro" };
 
 function brl(v){ return "R$ " + Number(v||0).toLocaleString("pt-BR",{minimumFractionDigits:2, maximumFractionDigits:2}); }
 

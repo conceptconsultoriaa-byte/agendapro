@@ -197,3 +197,83 @@ create policy "admin atualiza logo de patrocinador" on storage.objects
     and (storage.foldername(name))[1] = 'patrocinadores'
     and auth.jwt() ->> 'email' = 'tadeuconcept@gmail.com'
   );
+
+-- ---------- MIGRAÇÃO: NutriPro (mesma tabela "businesses" + pacientes/diário alimentar) ----------
+alter table patrocinadores drop constraint if exists patrocinadores_produto_check;
+alter table patrocinadores add constraint patrocinadores_produto_check check (produto in ('agendapro','trainpro','nutripro'));
+
+create table if not exists pacientes (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references businesses(id) on delete cascade,
+  nome text not null,
+  telefone text not null,
+  created_at timestamptz default now()
+);
+create index if not exists idx_pacientes_business on pacientes(business_id);
+alter table pacientes enable row level security;
+
+create policy "dono gerencia pacientes" on pacientes
+  for all using (exists (select 1 from businesses b where b.id = pacientes.business_id and b.owner_id = auth.uid()))
+  with check (exists (select 1 from businesses b where b.id = pacientes.business_id and b.owner_id = auth.uid()));
+
+create table if not exists diario_fotos (
+  id uuid primary key default gen_random_uuid(),
+  paciente_id uuid not null references pacientes(id) on delete cascade,
+  foto_url text not null,
+  nota text,
+  created_at timestamptz default now()
+);
+create index if not exists idx_diario_paciente on diario_fotos(paciente_id);
+alter table diario_fotos enable row level security;
+
+create policy "dono ve fotos dos proprios pacientes" on diario_fotos
+  for select using (exists (select 1 from pacientes p join businesses b on b.id = p.business_id where p.id = diario_fotos.paciente_id and b.owner_id = auth.uid()));
+-- sem policy de insert pública de propósito: o paciente envia a foto via função abaixo (security definer)
+
+create table if not exists evolucao_peso (
+  id uuid primary key default gen_random_uuid(),
+  paciente_id uuid not null references pacientes(id) on delete cascade,
+  peso numeric(5,2) not null,
+  data date not null default current_date,
+  created_at timestamptz default now()
+);
+create index if not exists idx_evolucao_paciente on evolucao_peso(paciente_id);
+alter table evolucao_peso enable row level security;
+
+create policy "dono gerencia evolucao dos proprios pacientes" on evolucao_peso
+  for all using (exists (select 1 from pacientes p join businesses b on b.id = p.business_id where p.id = evolucao_peso.paciente_id and b.owner_id = auth.uid()))
+  with check (exists (select 1 from pacientes p join businesses b on b.id = p.business_id where p.id = evolucao_peso.paciente_id and b.owner_id = auth.uid()));
+
+-- Link público do diário (sem login): expõe só o necessário, nunca a lista de pacientes de outros.
+create or replace function public.get_paciente_publico(p_id uuid)
+returns table(
+  paciente_nome text,
+  business_nome text,
+  business_whatsapp text,
+  business_logo text,
+  business_cor text
+)
+language sql security definer set search_path = public
+as $$
+  select p.nome, b.name, b.whatsapp, b.logo_url, b.brand_color
+  from pacientes p
+  join businesses b on b.id = p.business_id
+  where p.id = p_id;
+$$;
+grant execute on function public.get_paciente_publico(uuid) to anon, authenticated;
+
+create or replace function public.registrar_diario_foto(p_paciente_id uuid, p_foto_url text, p_nota text default null)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare novo_id uuid;
+begin
+  insert into diario_fotos (paciente_id, foto_url, nota) values (p_paciente_id, p_foto_url, p_nota) returning id into novo_id;
+  return novo_id;
+end;
+$$;
+grant execute on function public.registrar_diario_foto(uuid, text, text) to anon, authenticated;
+
+create policy "publico envia foto do diario" on storage.objects
+  for insert to anon
+  with check (bucket_id = 'logos' and (storage.foldername(name))[1] = 'diario');
