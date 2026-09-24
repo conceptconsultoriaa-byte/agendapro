@@ -202,6 +202,130 @@ create policy "admin atualiza logo de patrocinador" on storage.objects
 alter table patrocinadores drop constraint if exists patrocinadores_produto_check;
 alter table patrocinadores add constraint patrocinadores_produto_check check (produto in ('agendapro','trainpro','nutripro'));
 
+-- ---------- MIGRAÇÃO: VitrinePro (mesma tabela "businesses" + vitrine de produtos com carrinho) ----------
+alter table patrocinadores drop constraint if exists patrocinadores_produto_check;
+alter table patrocinadores add constraint patrocinadores_produto_check check (produto in ('agendapro','trainpro','nutripro','vitrinepro'));
+
+create table if not exists produtos (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references businesses(id) on delete cascade,
+  nome text not null,
+  preco numeric(10,2) not null,
+  foto_url text,
+  ativo boolean not null default true,
+  created_at timestamptz default now()
+);
+create index if not exists idx_produtos_business on produtos(business_id);
+alter table produtos enable row level security;
+
+create policy "dono gerencia produtos" on produtos
+  for all using (exists (select 1 from businesses b where b.id = produtos.business_id and b.owner_id = auth.uid()))
+  with check (exists (select 1 from businesses b where b.id = produtos.business_id and b.owner_id = auth.uid()));
+create policy "publico le produtos ativos" on produtos
+  for select using (ativo = true);
+
+create table if not exists pedidos (
+  id uuid primary key default gen_random_uuid(),
+  business_id uuid not null references businesses(id) on delete cascade,
+  cliente_nome text not null,
+  cliente_telefone text not null,
+  endereco_entrega text,
+  data_entrega date,
+  valor_total numeric(10,2) not null default 0,
+  status text not null default 'pendente' check (status in ('pendente','pago','entregue','cancelado')),
+  mp_link text,
+  created_at timestamptz default now()
+);
+create index if not exists idx_pedidos_business on pedidos(business_id);
+alter table pedidos enable row level security;
+
+create policy "dono gerencia pedidos" on pedidos
+  for all using (exists (select 1 from businesses b where b.id = pedidos.business_id and b.owner_id = auth.uid()))
+  with check (exists (select 1 from businesses b where b.id = pedidos.business_id and b.owner_id = auth.uid()));
+-- sem policy publica de insert de proposito: o pedido e criado pela funcao criar_pedido (security definer)
+
+create table if not exists itens_pedido (
+  id uuid primary key default gen_random_uuid(),
+  pedido_id uuid not null references pedidos(id) on delete cascade,
+  produto_id uuid references produtos(id) on delete set null,
+  produto_nome text not null,
+  quantidade int not null default 1,
+  valor_unitario numeric(10,2) not null,
+  valor_subtotal numeric(10,2) not null
+);
+create index if not exists idx_itens_pedido on itens_pedido(pedido_id);
+alter table itens_pedido enable row level security;
+
+create policy "dono ve itens dos proprios pedidos" on itens_pedido
+  for select using (exists (select 1 from pedidos p join businesses b on b.id = p.business_id where p.id = itens_pedido.pedido_id and b.owner_id = auth.uid()));
+create policy "publico ve itens ao criar pedido" on itens_pedido
+  for select using (true);
+
+-- Cria o pedido inteiro (cabecalho + itens) calculando o total a partir do preco real no banco,
+-- pra ninguem conseguir manipular o preco pelo navegador.
+create or replace function public.criar_pedido(
+  p_business_id uuid,
+  p_cliente_nome text,
+  p_cliente_telefone text,
+  p_endereco text,
+  p_data_entrega date,
+  p_itens jsonb
+)
+returns uuid
+language plpgsql security definer set search_path = public
+as $$
+declare
+  novo_pedido_id uuid;
+  item jsonb;
+  prod record;
+  total numeric(10,2) := 0;
+begin
+  insert into pedidos (business_id, cliente_nome, cliente_telefone, endereco_entrega, data_entrega, valor_total, status)
+  values (p_business_id, p_cliente_nome, p_cliente_telefone, p_endereco, p_data_entrega, 0, 'pendente')
+  returning id into novo_pedido_id;
+
+  for item in select * from jsonb_array_elements(p_itens)
+  loop
+    select id, nome, preco into prod from produtos
+      where id = (item->>'produto_id')::uuid and business_id = p_business_id and ativo = true;
+    if prod.id is not null then
+      insert into itens_pedido (pedido_id, produto_id, produto_nome, quantidade, valor_unitario, valor_subtotal)
+      values (novo_pedido_id, prod.id, prod.nome, (item->>'quantidade')::int, prod.preco, prod.preco * (item->>'quantidade')::int);
+      total := total + (prod.preco * (item->>'quantidade')::int);
+    end if;
+  end loop;
+
+  update pedidos set valor_total = total where id = novo_pedido_id;
+  return novo_pedido_id;
+end;
+$$;
+grant execute on function public.criar_pedido(uuid, text, text, text, date, jsonb) to anon, authenticated;
+
+-- Dados publicos da vitrine (nome, cor, logo, whatsapp) a partir do slug
+create or replace function public.get_vitrine_publica(p_slug text)
+returns table(business_id uuid, nome text, cor text, logo text, whatsapp text)
+language sql security definer set search_path = public
+as $$
+  select id, name, brand_color, logo_url, whatsapp from businesses where slug = p_slug;
+$$;
+grant execute on function public.get_vitrine_publica(text) to anon, authenticated;
+
+-- Storage: fotos de produtos, mesmo bucket "logos", prefixo "produtos/{business_id}/..."
+create policy "dono envia foto de produto" on storage.objects
+  for insert to authenticated
+  with check (
+    bucket_id = 'logos'
+    and (storage.foldername(name))[1] = 'produtos'
+    and exists (select 1 from businesses b where b.owner_id = auth.uid() and b.id::text = (storage.foldername(name))[2])
+  );
+create policy "dono atualiza foto de produto" on storage.objects
+  for update to authenticated
+  using (
+    bucket_id = 'logos'
+    and (storage.foldername(name))[1] = 'produtos'
+    and exists (select 1 from businesses b where b.owner_id = auth.uid() and b.id::text = (storage.foldername(name))[2])
+  );
+
 create table if not exists pacientes (
   id uuid primary key default gen_random_uuid(),
   business_id uuid not null references businesses(id) on delete cascade,
