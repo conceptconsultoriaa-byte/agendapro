@@ -265,26 +265,56 @@ cfgForm.addEventListener("submit", async e=>{
 });
 
 /* ---------------- PROFISSIONAIS ---------------- */
+let editingProfId = null;
 document.getElementById("profForm").addEventListener("submit", async e=>{
   e.preventDefault();
-  const limite = planoAtual().profissionais;
-  if(PROFESSIONALS.length >= limite){
-    alert(`Seu plano atual permite até ${limite} profissionais. Para cadastrar mais, faça upgrade em Configurações → Assinatura.`);
-    return;
+  if(!editingProfId){
+    const limite = planoAtual().profissionais;
+    if(PROFESSIONALS.length >= limite){
+      alert(`Seu plano atual permite até ${limite} profissionais. Para cadastrar mais, faça upgrade em Configurações → Assinatura.`);
+      return;
+    }
   }
   const name = document.getElementById("profNome").value.trim();
   const spec = document.getElementById("profEspecialidade").value.trim();
   const start_time = document.getElementById("profInicio").value;
   const end_time = document.getElementById("profFim").value;
   if(!name) return;
-  const color = PALETTE[PROFESSIONALS.length % PALETTE.length];
-  const { error } = await supabaseClient.from("professionals").insert({ business_id: BUSINESS.id, name, spec, start_time, end_time, color });
+  let error;
+  if(editingProfId){
+    ({ error } = await supabaseClient.from("professionals").update({ name, spec, start_time, end_time }).eq("id", editingProfId));
+  } else {
+    const color = PALETTE[PROFESSIONALS.length % PALETTE.length];
+    ({ error } = await supabaseClient.from("professionals").insert({ business_id: BUSINESS.id, name, spec, start_time, end_time, color }));
+  }
   if(error){ alert("Erro: " + error.message); return; }
-  e.target.reset();
-  document.getElementById("profInicio").value = "09:00";
-  document.getElementById("profFim").value = "18:00";
+  cancelarEdicaoProf();
   await loadAll(); refreshAll();
 });
+function editarProfissional(p){
+  editingProfId = p.id;
+  document.getElementById("profNome").value = p.name || "";
+  document.getElementById("profEspecialidade").value = p.spec || "";
+  document.getElementById("profInicio").value = p.start_time || p.start || "09:00";
+  document.getElementById("profFim").value = p.end_time || p.end || "18:00";
+  const titulo = document.getElementById("profFormTitle");
+  titulo.textContent = "Editando: " + p.name;
+  titulo.style.display = "block";
+  document.getElementById("profFormSubmitBtn").textContent = "Salvar alterações";
+  document.getElementById("profFormCancelBtn").style.display = "inline-block";
+  document.getElementById("profForm").scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("profNome").focus();
+}
+function cancelarEdicaoProf(){
+  editingProfId = null;
+  document.getElementById("profForm").reset();
+  document.getElementById("profInicio").value = "09:00";
+  document.getElementById("profFim").value = "18:00";
+  document.getElementById("profFormTitle").style.display = "none";
+  document.getElementById("profFormSubmitBtn").textContent = "Adicionar";
+  document.getElementById("profFormCancelBtn").style.display = "none";
+}
+document.getElementById("profFormCancelBtn").addEventListener("click", cancelarEdicaoProf);
 
 function renderProfList(){
   const el = document.getElementById("profList");
@@ -299,8 +329,12 @@ function renderProfList(){
     div.innerHTML = `
       <span><span class="dot" style="background:${p.color};width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px;"></span>
       <strong>${p.name}</strong> ${p.spec?("— "+p.spec):""} (${p.start}–${p.end})</span>
-      <button class="btn-danger">Remover</button>`;
-    div.querySelector("button").addEventListener("click", async ()=>{
+      <span style="display:flex; gap:8px;">
+        <button class="btn-secondary btn-editar">Editar</button>
+        <button class="btn-danger">Remover</button>
+      </span>`;
+    div.querySelector(".btn-editar").addEventListener("click", ()=> editarProfissional(p));
+    div.querySelector(".btn-danger").addEventListener("click", async ()=>{
       if(!confirm(`Remover ${p.name}? Isso também apaga os agendamentos dele(a).`)) return;
       await supabaseClient.from("professionals").delete().eq("id", p.id);
       await loadAll(); refreshAll();
@@ -310,18 +344,45 @@ function renderProfList(){
 }
 
 /* ---------------- SERVIÇOS ---------------- */
+let editingServId = null;
 document.getElementById("servForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const name = document.getElementById("servNome").value.trim();
   const price = parseFloat(document.getElementById("servPreco").value);
   const duration = parseInt(document.getElementById("servDuracao").value,10);
   if(!name || isNaN(price) || isNaN(duration)) return;
-  const { error } = await supabaseClient.from("services").insert({ business_id: BUSINESS.id, name, price, duration });
+  let error;
+  if(editingServId){
+    ({ error } = await supabaseClient.from("services").update({ name, price, duration }).eq("id", editingServId));
+  } else {
+    ({ error } = await supabaseClient.from("services").insert({ business_id: BUSINESS.id, name, price, duration }));
+  }
   if(error){ alert("Erro: " + error.message); return; }
-  e.target.reset();
-  document.getElementById("servDuracao").value = 60;
+  cancelarEdicaoServ();
   await loadAll(); refreshAll();
 });
+function editarServico(s){
+  editingServId = s.id;
+  document.getElementById("servNome").value = s.name || "";
+  document.getElementById("servPreco").value = s.price || "";
+  document.getElementById("servDuracao").value = s.duration || 60;
+  const titulo = document.getElementById("servFormTitle");
+  titulo.textContent = "Editando: " + s.name;
+  titulo.style.display = "block";
+  document.getElementById("servFormSubmitBtn").textContent = "Salvar alterações";
+  document.getElementById("servFormCancelBtn").style.display = "inline-block";
+  document.getElementById("servForm").scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("servNome").focus();
+}
+function cancelarEdicaoServ(){
+  editingServId = null;
+  document.getElementById("servForm").reset();
+  document.getElementById("servDuracao").value = 60;
+  document.getElementById("servFormTitle").style.display = "none";
+  document.getElementById("servFormSubmitBtn").textContent = "Adicionar serviço";
+  document.getElementById("servFormCancelBtn").style.display = "none";
+}
+document.getElementById("servFormCancelBtn").addEventListener("click", cancelarEdicaoServ);
 
 function renderServList(){
   const el = document.getElementById("servList");
@@ -330,8 +391,12 @@ function renderServList(){
     const div = document.createElement("div");
     div.className = "list-item";
     div.innerHTML = `<span><strong>${s.name}</strong> — ${brl(s.price)} · ${s.duration} min</span>
-      <button class="btn-danger">Remover</button>`;
-    div.querySelector("button").addEventListener("click", async ()=>{
+      <span style="display:flex; gap:8px;">
+        <button class="btn-secondary btn-editar">Editar</button>
+        <button class="btn-danger">Remover</button>
+      </span>`;
+    div.querySelector(".btn-editar").addEventListener("click", ()=> editarServico(s));
+    div.querySelector(".btn-danger").addEventListener("click", async ()=>{
       await supabaseClient.from("services").delete().eq("id", s.id);
       await loadAll(); refreshAll();
     });
